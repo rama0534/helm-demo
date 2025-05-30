@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:17-jdk-jammy
 VOLUME /tmp
 ARG JAR_FILE
 COPY ./target/*.jar /demo.jar

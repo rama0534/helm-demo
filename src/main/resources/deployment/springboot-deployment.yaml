@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: springboot
-          image: rama534s/demo:0.1
+          image: rama534s/my-spring-boot-app:0.2
+#          imagePullPolicy: IfNotPresent
 #          imagePullPolicy: Never
           ports:
             - containerPort: 8080
