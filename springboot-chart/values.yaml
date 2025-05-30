@@ -1,0 +1,24 @@
+##Azure Kubernetes service
+replicaCount: 1
+
+image:
+  repository: rama534s/my-spring-boot-app
+  tag: 0.4
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+
+##local....
+#replicaCount: 1
+#
+#image:
+#  repository: my-spring-boot-app
+#  tag: 0.1
+#  pullPolicy: Never  # Change to IfNotPresent or Always if needed
+#
+#service:
+#  type: NodePort
+#  nodePort: 30080
