@@ -131,7 +131,10 @@ $ helm list
 NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
 
 ```
-## Deploy in Kubernetes service using docker image helm chart 
+## Deploy in Kubernetes service using docker image from Docker hub and helm chart 
+### Prerequisites
+1. [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
+2. [Install kubectl](https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-install-cli)
 ### Create a docker image and push it to docker hub 
 ```
 docker buildx create --use   # only once, to enable buildx
@@ -279,3 +282,158 @@ release "spring-boot-demo-azure" uninstalled
 $ helm list                            
 NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
 ```
+## Deploy in Kubernetes service using docker image from Azure Container registry and helm chart
+### Create an Azure Container registry
+#### Using Azure portal
+1. Go to  [Azure Portal](https://portal.azure.com/#home)  and sign in.
+2. In the left sidebar, click on "Container registries".
+3. Select create button.
+4. Then provide the required details based on your preference.
+5. Click on Review + create
+#### Using Azure CLI
+```shell
+$ az login
+$ az group create --name spring-demo --location eastus # az group create --name <resource-group-name> --location <location>
+$ az acr create --resource-group spring-demo \
+              --name springdemoacr \  # Resource names may contain alpha numeric characters only and must be between 5 and 50 characters
+              --sku Basic \. # --sku options: Basic, Standard, Premium
+              --admin-enabled true
+$ az acr show --name springdemoacr --resource-group spring-demo
+$ az acr list --output table
+$ az acr login --name springdemoacr # az acr login --name <your-acr-name>
+# Navigate to docker image location. 
+$ docker buildx build \            
+  --platform linux/amd64,linux/arm64 \
+  -t  springdemoacr.azurecr.io/my-spring-boot-app:0.1 \
+  --push . 
+# list the repositories 
+$ az acr repository list  --name springdemoacr 
+
+[
+  "my-spring-boot-app"
+]
+$ az acr repository show-tags --name springdemoacr --repository my-spring-boot-app
+
+[
+  "0.1"
+]
+
+$ az acr credential show --name springdemoacr # To get the password
+$ kubectl delete secret acr-auth # if you already have a secret 
+# If you're using Azure Kubernetes Service (AKS) and your ACR is in the same subscription and resource group, you can link them like this:
+$ az aks update \
+  --name <aks-cluster-name> \
+  --resource-group <resource-group-name> \
+  --attach-acr <acr-name>
+
+# Create a Kubernetes ImagePullSecret (manual) If you're not using AKS or ACR is in a different subscription, you can create a secret manually:  
+$ kubectl create secret docker-registry acr-auth \
+  --docker-server=<your-server-name.azurecr.io> \
+  --docker-username=<your-acr-username> \
+  --docker-password=<your-acr-password> \
+  --docker-email=<your-email>
+ 
+```
+
+#### deployment.yaml
+```shell
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      imagePullSecrets:
+        - name: acr-auth
+      containers:
+        - name: springboot
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+```
+ 
+#### values.yaml
+```shell
+##Azure Kubernetes service with Container registry
+replicaCount: 1
+
+image:
+  repository: springdemoacr.azurecr.io/my-spring-boot-app
+  tag: 0.1
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+```
+ 
+```shell
+# Navigate to you azure portal and open Kubernetes service then click on connect 
+$ az aks get-credentials --resource-group <resource-group> --name <cluster-name> --overwrite-existing
+
+$ kubectl config current-context                                                                  
+springboot-aks
+
+$ kubectl config get-contexts # to list all the clusters in your local
+CURRENT   NAME             CLUSTER          AUTHINFO                                   NAMESPACE
+          docker-desktop   docker-desktop   docker-desktop                             
+          minikube         minikube         minikube                                   default
+*         springboot-aks   springboot-aks   clusterUser_spring-aks-rg_springboot-aks
+
+$ helm install spring-boot-demo-azure ./springboot-chart
+NAME: spring-boot-demo-azure
+LAST DEPLOYED: Sat May 31 18:05:38 2025
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+1. Get the application URL by running these commands: 
+
+$ kubectl get pods
+NAME                                                 READY   STATUS              RESTARTS   AGE
+spring-boot-demo-azure-deployment-78c4559bc7-pwpgf   0/1     ContainerCreating   0          13s
+
+$ kubectl get svc
+NAME                             TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)          AGE
+kubernetes                       ClusterIP      10.0.0.1     <none>           443/TCP          4d3h
+spring-boot-demo-azure-service   LoadBalancer   10.0.66.12   <EXTERNAL-IP>   8080:30080/TCP   27s
+
+$ kubectl get pods
+NAME                                                 READY   STATUS    RESTARTS   AGE
+spring-boot-demo-azure-deployment-78c4559bc7-pwpgf   1/1     Running   0          35s
+$ kubectl logs spring-boot-demo-azure-deployment-78c4559bc7-pwpgf
+2025-05-31T23:05:53.108Z  INFO 1 --- [demo] [           main] com.example.demo.DemoApplication         : Starting DemoApplication v0.0.1-SNAPSHOT using Java 17.0.15 with PID 1 (/demo.jar started by root in /)
+2025-05-31T23:05:53.126Z  INFO 1 --- [demo] [           main] com.example.demo.DemoApplication         : No active profile set, falling back to 1 default profile: "default"
+2025-05-31T23:05:54.515Z  INFO 1 --- [demo] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2025-05-31T23:05:54.529Z  INFO 1 --- [demo] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-05-31T23:05:54.530Z  INFO 1 --- [demo] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.41]
+2025-05-31T23:05:54.568Z  INFO 1 --- [demo] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-05-31T23:05:54.569Z  INFO 1 --- [demo] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1283 ms
+2025-05-31T23:05:55.114Z  INFO 1 --- [demo] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+2025-05-31T23:05:55.136Z  INFO 1 --- [demo] [           main] com.example.demo.DemoApplication         : Started DemoApplication in 2.698 seconds (process running for 3.357)
+$ curl http://<EXTERNAL-IP>/hello
+Hello World%                                                                                                                                                                      
+```
+
+#### Other useful commands
+```shell
+$ helm uninstall spring-boot-demo-azure
+release "spring-boot-demo-azure" uninstalled
+
+$ helm list                            
+NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
+```
+
+###
+

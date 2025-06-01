@@ -12,6 +12,8 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      imagePullSecrets:
+        - name: acr-auth
       containers:
         - name: springboot
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

@@ -1,15 +1,28 @@
-##Azure Kubernetes service
+##Azure Kubernetes service with Container registry
 replicaCount: 1
 
 image:
-  repository: rama534s/my-spring-boot-app
-  tag: 0.4
+  repository: springdemoacr.azurecr.io/my-spring-boot-app
+  tag: 0.1
   pullPolicy: Always
 
 service:
   type: LoadBalancer
   port: 80
   targetPort: 8080
+
+###Azure Kubernetes service with docker image
+#replicaCount: 1
+#
+#image:
+#  repository: rama534s/my-spring-boot-app
+#  tag: 0.4
+#  pullPolicy: Always
+#
+#service:
+#  type: LoadBalancer
+#  port: 80
+#  targetPort: 8080
 
 ##local....
 #replicaCount: 1
