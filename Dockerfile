@@ -1,7 +1,4 @@
 FROM eclipse-temurin:17-jdk-jammy
-VOLUME /tmp
-ARG JAR_FILE
-COPY ./target/*.jar /demo.jar
-ENV JAVA_OPTS=""
-ENTRYPOINT ["java", "-jar", "/demo.jar"]
-CMD [""]
+WORKDIR /app
+COPY target/*.jar /app/demo.jar
+ENTRYPOINT ["java", "$JAVA_OPTS", "-jar", "/app/demo.jar"]

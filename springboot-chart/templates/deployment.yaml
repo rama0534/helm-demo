@@ -18,5 +18,12 @@ spec:
         - name: springboot
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: JAVA_OPTS
+              value: |
+                -Xms512m
+                -Xmx1024m
+                -XX:+UseG1GC
+                -Duser.timezone=UTC
           ports:
             - containerPort: 8080
