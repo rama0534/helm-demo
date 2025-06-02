@@ -19,6 +19,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Generate Timestamp Tag
+        id: image_tag
+        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
       - name: Decode and Set Kubeconfig
         run: |
             echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
@@ -41,6 +45,7 @@ jobs:
 
       - name: Push Docker image to ACR
         run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG
+        
       - name: Install Helm
         run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
@@ -49,4 +54,4 @@ jobs:
           export KUBECONFIG=$(pwd)/kubeconfig
           helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
             --set image.repository=$ACR_LOGIN_SERVER/$IMAGE_NAME \
-            --set image.tag=$IMAGE_TAG
+            --set image.tag=${{ steps.image_tag.outputs.tag }}
