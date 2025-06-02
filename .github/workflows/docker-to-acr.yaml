@@ -1,0 +1,32 @@
+name: Build and Push Docker Image to ACR with Username/Password
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: springapp
+  IMAGE_TAG: v1
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to ACR using username and password
+        run: |
+          echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
+            --username ${{ secrets.ACR_USERNAME }} \
+            --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:$IMAGE_TAG .
+
+      - name: Tag Docker image for ACR
+        run: docker tag $IMAGE_NAME:$IMAGE_TAG ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG
+
+      - name: Push Docker image to ACR
+        run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG

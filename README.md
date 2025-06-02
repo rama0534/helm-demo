@@ -434,6 +434,3 @@ release "spring-boot-demo-azure" uninstalled
 $ helm list                            
 NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
 ```
-
-###
-
