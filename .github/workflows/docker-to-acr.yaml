@@ -4,12 +4,6 @@ on:
   push:
     branches: [ main ]
 
-env:
-  IMAGE_NAME: springapp 
-  ACR_LOGIN_SERVER: springdemoacr.azurecr.io
-  HELM_RELEASE_NAME: springapp-release
-  HELM_CHART_PATH: ./charts/springapp
-
 jobs:
   build-push-deploy:
     runs-on: ubuntu-latest
@@ -18,39 +12,40 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Generate Timestamp Tag
-        id: image_tag
+      - name: Generate IMAGE_TAG
+        id: tag
         run: echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
-      - name: Decode and Set Kubeconfig
+      - name: Set environment variables
         run: |
-            echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
-            export KUBECONFIG=$(pwd)/kubeconfig
+          echo "IMAGE_NAME=springapp" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ steps.tag.outputs.tag }}" >> $GITHUB_ENV
+          echo "ACR_LOGIN_SERVER=springdemoacr.azurecr.io" >> $GITHUB_ENV
+          echo "HELM_RELEASE_NAME=springapp-release" >> $GITHUB_ENV
+          echo "HELM_CHART_PATH=./charts/springapp" >> $GITHUB_ENV
 
-      - name: Login to ACR using username and password
-        run: |
-          echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
-            --username ${{ secrets.ACR_USERNAME }} \
-            --password-stdin
-
-      - name: Build spring app
+      - name: Build Spring Boot app
         run: mvn clean install -DskipTests
+
+      - name: Docker login to ACR
+        run: echo "${{ secrets.ACR_PASSWORD }}" | docker login $ACR_LOGIN_SERVER --username ${{ secrets.ACR_USERNAME }} --password-stdin
 
       - name: Build Docker image
         run: docker build -t $IMAGE_NAME:$IMAGE_TAG .
 
       - name: Tag Docker image for ACR
-        run: docker tag $IMAGE_NAME:$IMAGE_TAG ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG
+        run: docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
 
       - name: Push Docker image to ACR
-        run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG
+        run: docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
 
       - name: Install Helm
         run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-      - name: Deploy Helm Chart to AKS
+      - name: Deploy using Helm
         run: |
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
           export KUBECONFIG=$(pwd)/kubeconfig
           helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
             --set image.repository=$ACR_LOGIN_SERVER/$IMAGE_NAME \
-            --set image.tag=${{ steps.image_tag.outputs.tag }}
+            --set image.tag=$IMAGE_TAG
