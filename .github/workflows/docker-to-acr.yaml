@@ -7,14 +7,22 @@ on:
 env:
   IMAGE_NAME: springapp
   IMAGE_TAG: v1
+  ACR_LOGIN_SERVER: springdemoacr.azurecr.io
+  HELM_RELEASE_NAME: springapp-release
+  HELM_CHART_PATH: ./charts/springapp
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+
+      - name: Decode and Set Kubeconfig
+        run: |
+            echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
+            export KUBECONFIG=$(pwd)/kubeconfig
 
       - name: Login to ACR using username and password
         run: |
@@ -22,7 +30,7 @@ jobs:
             --username ${{ secrets.ACR_USERNAME }} \
             --password-stdin
 
-      - name: Build
+      - name: Build spring app
         run: mvn clean install -DskipTests
 
       - name: Build Docker image
@@ -33,3 +41,12 @@ jobs:
 
       - name: Push Docker image to ACR
         run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$IMAGE_TAG
+      - name: Install Helm
+        run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Deploy Helm Chart to AKS
+        run: |
+          export KUBECONFIG=$(pwd)/kubeconfig
+          helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
+            --set image.repository=$ACR_LOGIN_SERVER/$IMAGE_NAME \
+            --set image.tag=$IMAGE_TAG
