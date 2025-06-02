@@ -6,7 +6,7 @@ on:
 
 env:
   IMAGE_NAME: springapp
-  IMAGE_TAG: v1
+  IMAGE_TAG: IMAGE_TAG=$(date +%Y%m%d%H%M%S)
   ACR_LOGIN_SERVER: springdemoacr.azurecr.io
   HELM_RELEASE_NAME: springapp-release
   HELM_CHART_PATH: ./charts/springapp
