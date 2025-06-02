@@ -3,13 +3,21 @@ replicaCount: 1
 
 image:
   repository: springdemoacr.azurecr.io/my-spring-boot-app
-  tag: 0.1
+  tag: 0.4
   pullPolicy: Always
 
 service:
   type: LoadBalancer
   port: 80
   targetPort: 8080
+env:
+  JAVA_OPTS: >-
+    -Xms512m
+    -Xmx1024m
+    -XX:+UseG1GC
+    -Dspring.profiles.active=prod
+    -Duser.timezone=UTC
+
 
 ###Azure Kubernetes service with docker image
 #replicaCount: 1
