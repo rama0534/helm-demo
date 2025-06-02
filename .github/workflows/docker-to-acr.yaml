@@ -2,7 +2,7 @@ name: Build and Push Docker Image to ACR with Username/Password
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
   build-push-deploy:

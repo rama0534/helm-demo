@@ -434,3 +434,83 @@ release "spring-boot-demo-azure" uninstalled
 $ helm list                            
 NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
 ```
+
+## Using GitHub Action
+### You can use multiple ways to do the GitHub actions. Here I am using ACR Username, Password and kubeconfig. 
+- Step 1: Get ACR Username and Password
+  - Go to Azure Portal → Your ACR (e.g., springdemoacr)
+  - Navigate to Access keys under Settings
+  - Enable Admin user (if not already enabled)
+  - Copy: Username Password (either password1 or password2)
+  - Or you can use CLI  by running below commands 
+  ```shell
+    az acr credential show --name <azure-container-registry>
+   ``` 
+  - Generate AKS kubeconfig Locally.
+  ```shell
+        $ az aks get-credentials --resource-group spring-demo --name your-aks-cluster-name --file kubeconfig
+        $ base64 -w 0 kubeconfig > kubeconfig.b64 # windows
+        $ base64 -i kubeconfig -o kubeconfig.b64 # mac
+  ```
+- Step 2: Add GitHub Secrets
+  - In your GitHub repo: Go to Settings → Secrets → Actions
+  - Add the following secrets:
+    - ACR_USERNAME → (paste the username)
+    - ACR_PASSWORD → (paste the password)
+    - ACR_LOGIN_SERVER → (e.g., springdemoacr.azurecr.io)
+    - KUBECONFIG_B64 -> (kubeconfig.b64)
+
+ ### Add below code to  .github/workflows/docker-to-acr.yaml
+```shell
+name: Build and Push Docker Image to ACR with Username/Password
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Generate IMAGE_TAG
+        id: tag
+        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
+      - name: Set environment variables
+        run: |
+          echo "IMAGE_NAME=springapp" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ steps.tag.outputs.tag }}" >> $GITHUB_ENV
+          echo "ACR_LOGIN_SERVER=springdemoacr.azurecr.io" >> $GITHUB_ENV
+          echo "HELM_RELEASE_NAME=springapp-release" >> $GITHUB_ENV
+          echo "HELM_CHART_PATH=./charts/springapp" >> $GITHUB_ENV
+
+      - name: Build Spring Boot app
+        run: mvn clean install -DskipTests
+
+      - name: Docker login to ACR
+        run: echo "${{ secrets.ACR_PASSWORD }}" | docker login $ACR_LOGIN_SERVER --username ${{ secrets.ACR_USERNAME }} --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:$IMAGE_TAG .
+
+      - name: Tag Docker image for ACR
+        run: docker tag $IMAGE_NAME:$IMAGE_TAG $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+
+      - name: Push Docker image to ACR
+        run: docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+
+      - name: Install Helm
+        run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Deploy using Helm
+        run: |
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > kubeconfig
+          export KUBECONFIG=$(pwd)/kubeconfig
+          helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
+            --set image.repository=$ACR_LOGIN_SERVER/$IMAGE_NAME \
+            --set image.tag=$IMAGE_TAG
+```
